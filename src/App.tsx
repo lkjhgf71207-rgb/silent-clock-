@@ -60,37 +60,50 @@ export default function App() {
     }, 5000); 
   }, [handlePowerOff]);
 
-  const handlePowerOn = async () => {
-    // Always refresh time on tap to prevent showing stale data
+  const handlePowerOn = () => {
+    // 1. Immediate state update and time refresh
     refreshTime();
-
+    
     if (showClock) {
-      startTimer(); 
+      startTimer();
       return;
     }
 
     setShowClock(true);
-    
-    // Request Wake Lock immediately on user gesture
-    if ('wakeLock' in navigator) {
+
+    // 2. Trigger Wake Lock (Non-blocking to preserve gesture token for fullscreen)
+    if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
       try {
-        const lock = await (navigator as any).wakeLock.request('screen');
-        wakeLockRef.current = lock;
-        
-        // If the lock is released by the system (e.g. battery low), turn off the clock
-        lock.addEventListener('release', () => {
-          if (wakeLockRef.current === lock) {
-            handlePowerOff();
-          }
-        });
-      } catch (err) {
-        console.warn('Wake lock request failed:', err);
+        (navigator as any).wakeLock.request('screen')
+          .then((lock: WakeLockSentinel) => {
+            wakeLockRef.current = lock;
+            lock.addEventListener('release', () => {
+              if (wakeLockRef.current === lock) {
+                handlePowerOff();
+              }
+            });
+          })
+          .catch((err: any) => {
+            console.warn('Wake lock promise rejected:', err.message);
+          });
+      } catch (err: any) {
+        console.warn('Wake lock sync error:', err.message);
       }
     }
 
-    // Request Fullscreen on user gesture
-    if (document.fullscreenEnabled && !document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+    // 3. Trigger Fullscreen (Must be in the same tick as user gesture)
+    if (typeof document !== 'undefined' && document.fullscreenEnabled && !document.fullscreenElement) {
+      try {
+        const fsPromise = document.documentElement.requestFullscreen();
+        if (fsPromise instanceof Promise) {
+          fsPromise.catch((err) => {
+            console.warn('Fullscreen promise rejected:', err.message);
+          });
+        }
+      } catch (err: any) {
+        // This is where "The operation is insecure" usually happens
+        console.warn('Fullscreen sync error caught:', err.message);
+      }
     }
 
     startTimer();
