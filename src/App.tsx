@@ -13,13 +13,22 @@ export default function App() {
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const timerRef = useRef<number | null>(null);
 
-  // Update time every second
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
+  // Function to refresh time to current moment
+  const refreshTime = useCallback(() => {
+    setTime(new Date());
   }, []);
+
+  // Update time every second, but only when visible to save battery
+  useEffect(() => {
+    let interval: number;
+    if (showClock) {
+      refreshTime(); // Initial refresh
+      interval = window.setInterval(refreshTime, 1000);
+    }
+    return () => {
+      if (interval) window.clearInterval(interval);
+    };
+  }, [showClock, refreshTime]);
 
   const releaseWakeLock = useCallback(async () => {
     if (wakeLockRef.current) {
@@ -48,12 +57,15 @@ export default function App() {
     if (timerRef.current) window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => {
       handlePowerOff();
-    }, 5000); // Precise 5 seconds
+    }, 5000); 
   }, [handlePowerOff]);
 
   const handlePowerOn = async () => {
+    // Always refresh time on tap to prevent showing stale data
+    refreshTime();
+
     if (showClock) {
-      startTimer(); // Reset timer if already visible
+      startTimer(); 
       return;
     }
 
@@ -64,6 +76,13 @@ export default function App() {
       try {
         const lock = await (navigator as any).wakeLock.request('screen');
         wakeLockRef.current = lock;
+        
+        // If the lock is released by the system (e.g. battery low), turn off the clock
+        lock.addEventListener('release', () => {
+          if (wakeLockRef.current === lock) {
+            handlePowerOff();
+          }
+        });
       } catch (err) {
         console.warn('Wake lock request failed:', err);
       }
