@@ -1,5 +1,5 @@
 {
   "name": "Onyx Clock (Moto G62 Edition)",
   "description": "A minimalist, ultra-low-power clock optimized for the Moto G62 5G. Features punch-hole awareness and LCD power-saving modes.",
-  "requestFramePermissions": ["screen-wake-lock", "fullscreen"]
+  "requestFramePermissions": ["screen-wake-lock", "wake-lock", "fullscreen"]
 }
